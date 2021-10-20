@@ -1,53 +1,66 @@
 package routs
 
 import (
-	"crypto/sha1"
-	"encoding/json"
-	"math/rand"
+	"fmt"
 	"net/http"
-	"simpleAPI/models"
-	"strconv"
+	"project/models"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v4"
 )
 
-type Users struct {
-	ID              string `json:"id"`
-	Firstname       string `json:"firstname"`
-	Lastname        string `json:"lastname"`
-	Username        string `json:"name"`
-	Email           string `json:"email"`
-	Password_Hushed []byte `json:"password_hushed"`
-}
-
-var Users_Table []Users
-
-func UserRegister(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func UsersLogin(c *gin.Context) {
 	user := models.User{}
-	_ = json.NewDecoder(r.Body).Decode(&user)
-	user.UserRegister(r)
-	// Users_Table = append(Users_Table, authenUser(&user))
-	json.NewEncoder(w).Encode(Users_Table)
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	db, _ := c.Get("mydb")
+	conn := db.(pgx.Conn)
+	err = user.IsAuthenticated(&conn)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := user.GetAuthToken()
+	if err == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"token": token,
+		})
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": "There was an error authenticating.",
+	})
 }
 
-func authenUser(u *models.User) Users {
-	user_db := Users{}
-	user_db.ID = strconv.Itoa(rand.Intn(100000000))
-	user_db.Firstname = u.Firstname
-	user_db.Lastname = u.Lastname
-	user_db.Username = u.Username
-	user_db.Email = u.Email
-	hash := sha1.New()
-	hash.Write([]byte(u.Password))
-	pass_hashed := hash.Sum(nil)
-	user_db.Password_Hushed = pass_hashed
+func UsersRegister(c *gin.Context) {
+	user := models.User{}
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	db, _ := c.Get("mydb")
+	conn := db.(pgx.Conn)
+	err = user.Register(&conn)
+	if err != nil {
+		fmt.Println("Error in user.Register()")
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	// sqlStatement := `insert into "Users"("id", "firstname", "lastname",
-	// 									  "username", "email", "password_hushed")
-	// 									   values($1, $2, $3, $4, $5, $6)
-	// 									   RETURNING id`
-	// id := 0
-	// err := db.QueryRow(sqlStatement, 30, "jon@calhoun.io", "Jonathan", "Calhoun").Scan(&id)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	token, err := user.GetAuthToken()
+	if err == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"token": token,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id": user.ID,
+	})
 }
