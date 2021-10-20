@@ -1,12 +1,12 @@
-package db
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-type Users struct {
-	ID              string `json:"id"`
-	Firstname       string `json:"firstname"`
-	Lastname        string `json:"lastname"`
-	Username        string `json:"name"`
-	Email           string `json:"email"`
-	Password_Hushed []byte `json:"password_hushed"`
-}
+CREATE TABLE base_table (
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
 
-var Users_Table []Users
+CREATE TABLE user_account (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v1(),
+    email VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(50) NOT NULL
+) INHERITS (base_table);
